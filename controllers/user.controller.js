@@ -6,10 +6,10 @@ exports.registerUser = async (req, res) => {
     try {
         // get user details, images from req
         const { username, email, password, fullName } = req.body;
-        const { avtaarImage, coverImage } = req.files;
+        const { avtarImage, coverImage } = req.files;
 
         // validation - not empty
-        if (!username || !email || !fullName || !password || !avtaarImage) {
+        if (!username || !email || !fullName || !password || !avtarImage) {
             return res.json({
                 success: false,
                 message: "Please Enter all fields",
@@ -26,8 +26,8 @@ exports.registerUser = async (req, res) => {
         }
 
         // upload to cloudinary
-        const avtaarResponse = await imageUploadCloudinary(
-            avtaarImage,
+        const avtarResponse = await imageUploadCloudinary(
+            avtarImage,
             process.env.CLOUDINARY_FOLDER_NAME
         );
         let coverResponse;
@@ -44,7 +44,7 @@ exports.registerUser = async (req, res) => {
             email,
             password,
             fullName,
-            avtaarImage: avtaarResponse.secure_url,
+            avtarImage: avtarResponse.secure_url,
             coverImage: coverResponse?.secure_url || "",
         });
 
@@ -224,6 +224,153 @@ exports.refreshAccessToken = async (req, res) => {
         res.json({
             success: false,
             message: `ERROR WHILE REFRESHING TOKEN: ${error.message}`,
+        });
+    }
+};
+
+exports.changeCurrentPassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const { _id } = req.user;
+
+        const user = await User.findById(_id);
+        console.log(`User: ${user}`);
+
+        const isPasswordCorrect = user.isPasswordCorrect(oldPassword);
+        if (!isPasswordCorrect) {
+            return res.json({
+                success: false,
+                message: "Old password is incorrect",
+            });
+        }
+
+        user.password = newPassword;
+        await user.save({ validateBeforeSave: false });
+
+        return res.json({
+            success: true,
+            message: "Old password is changed",
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE CHANGING PASSWORD: ${error.message}`,
+        });
+    }
+};
+
+exports.getCurrentUser = async (req, res) => {
+    try {
+        const user = req.user;
+        return res.json({
+            success: true,
+            message: "User fetched successfully",
+            data: user,
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE FETCHING USER: ${error.message}`,
+        });
+    }
+}; 
+
+exports.updateAccount = async (req, res) => {
+    try {
+        const { fullName } = req.body;
+        const { _id } = req.user;
+        const user = await User.findByIdAndUpdate(
+            _id,
+            { fullName: fullName },
+            { new: true }
+        );
+
+        return res.json({
+            success: true,
+            message: "User account updated successfully",
+            data: user,
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE UPDATING USER ACCOUNT: ${error.message}`,
+        });
+    }
+};
+
+exports.updateAvatarImage = async (req, res) => {
+    try {
+        const newAvtar = req.files.avtar;
+
+        if (!newAvtar) {
+            return res.json({
+                success: false,
+                message: "No avatar image uploaded",
+            });
+        }
+
+        const avtarResponse = await imageUploadCloudinary(
+            newAvtar,
+            process.env.CLOUDINARY_FOLDER_NAME
+        );
+        console.log(`cloudinary response: ${avtarResponse}`);
+
+        const user = await User.findByIdAndUpdate(
+            req.user._id,
+            { avtarImage: avtarResponse.secure_url },
+            { new: true }
+        );
+
+        return res.json({
+            success: true,
+            message: "User avatar updated successfully",
+            data: user,
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE UPDATING USER AVATAR: ${error.message}`,
+        });
+    }
+};
+
+exports.updateCoverImage = async (req, res) => {
+    try {
+        const newCoverImage = req.files.coverImage;
+
+        if (!newCoverImage) {
+            return res.json({
+                success: false,
+                message: "No cover image uploaded",
+            });
+        }
+
+        const coverResponse = await imageUploadCloudinary(
+            newCoverImage,
+            process.env.CLOUDINARY_FOLDER_NAME
+        );
+        console.log(`cloudinary response: ${coverResponse}`);
+
+        const user = await User.findByIdAndUpdate(
+            req.user._id,
+            { coverResponse: coverResponse.secure_url },
+            { new: true }
+        );
+
+        return res.json({
+            success: true,
+            message: "User avatar updated successfully",
+            data: user,
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE UPDATING USER COVER-IMAGE: ${error.message}`,
         });
     }
 };

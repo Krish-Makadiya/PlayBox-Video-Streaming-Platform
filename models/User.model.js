@@ -26,11 +26,11 @@ const schema = new mongoose.Schema(
             required: true,
             trim: true,
         },
-        avtaarImage: {
+        avtarImage: {
             type: String,
             required: true,
         },
-        coverImage: {
+        coverResponse: {
             type: String,
         },
         watchHistory: [
