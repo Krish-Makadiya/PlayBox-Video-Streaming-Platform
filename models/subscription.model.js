@@ -11,7 +11,7 @@ const schema = new mongoose.Schema(
             ref: "User",
         },
     },
-    {timestamps: true}
+    {timestamps: true}  
 );
 
 exports.module = mongoose.model("Subscription", schema);

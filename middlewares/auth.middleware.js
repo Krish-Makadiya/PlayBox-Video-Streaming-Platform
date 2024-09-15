@@ -1,5 +1,6 @@
 const User = require("../models/User.model");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 exports.auth = async (req, res, next) => {
     try {
@@ -15,11 +16,10 @@ exports.auth = async (req, res, next) => {
         }
 
         const payload = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-
-        const user = await User.findById(payload._id).select(
+        const user = await User.findById(new mongoose.Types.ObjectId(payload._id)).select(
             "-password -refreshToken"
         );
-        console.log(user);
+        
         if (!user) {
             return res.json({
                 success: false,
@@ -27,7 +27,7 @@ exports.auth = async (req, res, next) => {
             });
         }
 
-        res.user = user;
+        req.user = user;
         next();
     } catch (error) {
         console.log(`ERROR: ${error}`);

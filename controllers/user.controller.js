@@ -1,6 +1,7 @@
 const User = require("../models/User.model");
 const { imageUploadCloudinary } = require("../config/uploadCloudinary");
 const jwt = require("jsonwebtoken");
+const { default: mongoose } = require("mongoose");
 
 exports.registerUser = async (req, res) => {
     try {
@@ -143,13 +144,14 @@ exports.loginUser = async (req, res) => {
 
 exports.logoutUser = async (req, res) => {
     try {
-        console.log(req.user);
-        const id = req.user;
+        const id = req.user._id;
 
         await User.findByIdAndUpdate(
             id,
             {
-                refreshToken: undefined,
+                $unset: {
+                    refreshToken: 1,
+                },
             },
             { new: true }
         );
@@ -185,7 +187,7 @@ exports.refreshAccessToken = async (req, res) => {
             });
         }
 
-        const payload = await jwt.verify(token, JWT_REFRESH_TOKEN_SECRET);
+        const payload = await jwt.verify(token, process.env.JWT_REFRESH_TOKEN_SECRET);
         const user = await User.findById(payload._id);
 
         if (!user) {
@@ -275,7 +277,7 @@ exports.getCurrentUser = async (req, res) => {
             message: `ERROR WHILE FETCHING USER: ${error.message}`,
         });
     }
-}; 
+};
 
 exports.updateAccount = async (req, res) => {
     try {
@@ -371,6 +373,150 @@ exports.updateCoverImage = async (req, res) => {
         res.json({
             success: false,
             message: `ERROR WHILE UPDATING USER COVER-IMAGE: ${error.message}`,
+        });
+    }
+};
+
+exports.getUserChannelProfile = async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        if (!username) {
+            return res.json({
+                success: false,
+                message: "Username is required",
+            });
+        }
+
+        const channel = await User.aggregate([
+            {
+                $match: {
+                    username: username?.toLowerCase(),
+                },
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "channel",
+                    as: "subscribers",
+                },
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "subscriber",
+                    as: "subscribedTo",
+                },
+            },
+            {
+                $addFields: {
+                    subscriberCount: {
+                        $size: "$subscribers",
+                    },
+                    channelsSubscribedToCount: {
+                        $size: "$subscribedTo",
+                    },
+                    isSubscribed: {
+                        $cond: {
+                            if: {
+                                $in: [req.user?._id, "$subscribers.subscriber"],
+                            },
+                            then: true,
+                            else: false,
+                        },
+                    },
+                },
+            },
+            {
+                $project: {
+                    fullName: 1,
+                    username: 1,
+                    avatarImage: 1,
+                    coverImage: 1,
+                    subscriberCount: 1,
+                    channelsSubscribedToCount: 1,
+                    isSubscribed: 1,
+                    email: 1,
+                },
+            },
+        ]);
+        console.log(`channel: ${channel}`);
+
+        if (!channel) {
+            return res.json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: "User channel profile fetched successfully",
+            data: channel[0],
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE FETCHING USER CHANNEL PROFILE: ${error.message}`,
+        });
+    }
+};
+
+exports.getWatchHistory = async (req, res) => {
+    try {
+        const user = await User.aggregate([
+            {
+                $match: { _id: new mongoose.Types.ObjectId(req.user._id) },
+            },
+            {
+                $lookup: {
+                    from: "videos",
+                    localField: "watchHistory",
+                    foreignField: "_id",
+                    as: "watchHistory",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            avatarImage: 1,
+                                            username: 1,
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                        {
+                            $addFields: {
+                                owner: {
+                                    $first: "$owner",
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        ]);
+
+        return res.json({
+            success: true,
+            message: "User watch history fetched successfully",
+            data: user[0]?.watchHistory,
+        });
+    } catch (error) {
+        console.log(`ERROR: ${error}`);
+        res.json({
+            success: false,
+            message: `ERROR WHILE FETCHING USER WATCH HISTORY: ${error.message}`,
         });
     }
 };

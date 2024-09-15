@@ -56,9 +56,6 @@ schema.pre("save", async function (next) {
 });
 
 schema.methods.isPasswordCorrect = async function (password) {
-    console.log(this.password);
-    console.log(password);
-    // console.log(await bcrypt.compare(password, this.password));
     return (password === this.password) ? true : false;
 };
 
